@@ -3,57 +3,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Editor Program</title>
+    <title>動画結合・プレビュー</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+        }
+        .video-preview, .image-preview {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        video, img {
+            max-width: 200px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body>
-    <h1>Video Editor Program (Python)</h1>
-    <pre>
-from moviepy.editor import VideoFileClip, concatenate_videoclips
+    <h1>動画結合・プレビュー</h1>
 
-def main():
-    print("=== 動画編集プログラム ===")
-    print("1. 動画を結合")
-    print("2. プログラムを終了")
+    <!-- 動画アップロード -->
+    <h2>動画アップロード</h2>
+    <input type="file" id="videoFiles" accept="video/mp4" multiple>
+    <button onclick="mergeVideos()">動画を結合</button>
 
-    choice = input("選択してください（1 または 2）: ")
+    <!-- 動画プレビュー -->
+    <h2>動画プレビュー</h2>
+    <div class="video-preview" id="videoPreview"></div>
 
-    if choice == "1":
-        print("\n結合したい動画ファイルをスペース区切りで入力してください（例: video1.mp4 video2.mp4 video3.mp4）")
-        video_files = input("動画ファイル: ").split()
+    <!-- 静止画プレビュー -->
+    <h2>静止画プレビュー</h2>
+    <div class="image-preview" id="imagePreview"></div>
 
-        # ファイルの存在確認
-        for file in video_files:
-            if not os.path.exists(file):
-                print(f"エラー: {file} が見つかりません。")
-                return
+    <script>
+        const videoPreview = document.getElementById("videoPreview");
+        const imagePreview = document.getElementById("imagePreview");
 
-        print("\n動画を読み込み中...")
-        clips = []
-        try:
-            clips = [VideoFileClip(file) for file in video_files]
-        except Exception as e:
-            print(f"エラー: 動画の読み込みに失敗しました: {e}")
-            return
+        function mergeVideos() {
+            const files = document.getElementById("videoFiles").files;
 
-        print("\n動画を結合中...")
-        try:
-            final_clip = concatenate_videoclips(clips, method="compose")
-            output_file = "merged_video.mp4"
-            final_clip.write_videofile(output_file, codec="libx264", audio_codec="aac")
-            print(f"\n結合した動画を保存しました: {output_file}")
-        except Exception as e:
-            print(f"エラー: 動画の結合に失敗しました: {e}")
-        finally:
-            for clip in clips:
-                clip.close()
+            if (files.length === 0) {
+                alert("動画ファイルを選択してください");
+                return;
+            }
 
-    elif choice == "2":
-        print("プログラムを終了します。")
-    else:
-        print("無効な選択です。プログラムを終了します。")
+            // 動画プレビューの表示
+            videoPreview.innerHTML = "";
+            for (let file of files) {
+                const url = URL.createObjectURL(file);
+                const videoElement = document.createElement("video");
+                videoElement.src = url;
+                videoElement.controls = true;
+                videoElement.width = 200;
+                videoPreview.appendChild(videoElement);
+            }
 
-if __name__ == "__main__":
-    main()
-    </pre>
+            // 静止画の表示
+            createImagePreview(files);
+        }
+
+        function createImagePreview(files) {
+            imagePreview.innerHTML = "";
+
+            // 各動画から静止画を生成
+            for (let file of files) {
+                const url = URL.createObjectURL(file);
+                const videoElement = document.createElement("video");
+                videoElement.src = url;
+                videoElement.muted = true;
+                videoElement.play();
+
+                videoElement.addEventListener("loadeddata", () => {
+                    // 動画の1フレームをキャプチャ
+                    const canvas = document.createElement("canvas");
+                    canvas.width = 200;
+                    canvas.height = 150;
+                    const ctx = canvas.getContext("2d");
+                    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+                    // キャプチャした画像を表示
+                    const img = document.createElement("img");
+                    img.src = canvas.toDataURL("image/jpeg");
+                    imagePreview.appendChild(img);
+
+                    // 動画停止
+                    videoElement.pause();
+                });
+            }
+        }
+    </script>
 </body>
 </html>
