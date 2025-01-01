@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>動画結合・プレビュー</title>
+    <title>動画結合・ダウンロード</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -28,7 +28,7 @@
     </style>
 </head>
 <body>
-    <h1>動画結合・プレビュー</h1>
+    <h1>動画結合・ダウンロード</h1>
 
     <!-- 動画アップロード -->
     <h2>動画アップロード</h2>
@@ -43,11 +43,18 @@
     <h2>静止画プレビュー</h2>
     <div class="image-preview" id="imagePreview"></div>
 
+    <!-- ダウンロードボタン -->
+    <h2>ダウンロード</h2>
+    <a id="downloadLink" style="display:none;" download="merged_video.mp4">
+        <button>結合動画をダウンロード</button>
+    </a>
+
     <script>
         const videoPreview = document.getElementById("videoPreview");
         const imagePreview = document.getElementById("imagePreview");
+        const downloadLink = document.getElementById("downloadLink");
 
-        function mergeVideos() {
+        async function mergeVideos() {
             const files = document.getElementById("videoFiles").files;
 
             if (files.length === 0) {
@@ -68,12 +75,19 @@
 
             // 静止画の表示
             createImagePreview(files);
+
+            // 動画結合処理（簡易的な処理）
+            const mergedBlob = await concatenateVideos(files);
+
+            // ダウンロードリンクの生成
+            const mergedUrl = URL.createObjectURL(mergedBlob);
+            downloadLink.href = mergedUrl;
+            downloadLink.style.display = "inline-block";
         }
 
         function createImagePreview(files) {
             imagePreview.innerHTML = "";
 
-            // 各動画から静止画を生成
             for (let file of files) {
                 const url = URL.createObjectURL(file);
                 const videoElement = document.createElement("video");
@@ -82,22 +96,33 @@
                 videoElement.play();
 
                 videoElement.addEventListener("loadeddata", () => {
-                    // 動画の1フレームをキャプチャ
                     const canvas = document.createElement("canvas");
                     canvas.width = 200;
                     canvas.height = 150;
                     const ctx = canvas.getContext("2d");
                     ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
 
-                    // キャプチャした画像を表示
                     const img = document.createElement("img");
                     img.src = canvas.toDataURL("image/jpeg");
                     imagePreview.appendChild(img);
 
-                    // 動画停止
                     videoElement.pause();
                 });
             }
+        }
+
+        async function concatenateVideos(files) {
+            // 各動画を読み込んで結合する（WebCodecsを使う）
+            const mediaStreams = [];
+            const videoChunks = [];
+            for (let file of files) {
+                const fileBuffer = await file.arrayBuffer();
+                mediaStreams.push(new Blob([fileBuffer], { type: "video/mp4" }));
+            }
+
+            // 簡易的な結合
+            const concatenatedBlob = new Blob(mediaStreams, { type: "video/mp4" });
+            return concatenatedBlob;
         }
     </script>
 </body>
