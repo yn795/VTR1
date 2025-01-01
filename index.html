@@ -1,25 +1,49 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Merge Script</title>
-</head>
-<body>
-    <h1>Python Script for Video Merging</h1>
-    <pre>
+import os
 from moviepy.editor import VideoFileClip, concatenate_videoclips
 
-# 動画ファイルリスト（結合したい動画ファイルのパスを記載）
-video_files = ["video1.mp4", "video2.mp4", "video3.mp4"]
+def main():
+    print("=== 動画編集プログラム ===")
+    print("1. 動画を結合")
+    print("2. 終了")
+    
+    choice = input("選択肢を入力してください（1または2）: ")
+    
+    if choice == "1":
+        # 動画ファイルを入力
+        print("\n結合したい動画ファイル名をスペースで区切って入力してください（例: video1.mp4 video2.mp4）")
+        video_files = input("動画ファイル名: ").split()
+        
+        # ファイルの存在確認
+        for file in video_files:
+            if not os.path.exists(file):
+                print(f"エラー: ファイルが見つかりません -> {file}")
+                return
+        
+        # 動画を読み込み
+        try:
+            print("\n動画を読み込み中...")
+            clips = [VideoFileClip(file) for file in video_files]
+        except Exception as e:
+            print(f"エラー: 動画の読み込みに失敗しました - {e}")
+            return
+        
+        # 動画を結合
+        print("\n動画を結合中...")
+        try:
+            final_clip = concatenate_videoclips(clips, method="compose")
+            output_file = "merged_video_hd.mp4"
+            final_clip.write_videofile(output_file, codec="libx264", audio_codec="aac", fps=30)
+            print(f"\n動画の結合が完了しました！出力ファイル: {output_file}")
+        except Exception as e:
+            print(f"エラー: 動画の結合に失敗しました - {e}")
+        finally:
+            for clip in clips:
+                clip.close()
+    
+    elif choice == "2":
+        print("プログラムを終了します。")
+    else:
+        print("無効な選択肢です。")
 
-# 動画を読み込み、結合
-final_clip = concatenate_videoclips([VideoFileClip(file) for file in video_files], method="compose")
-
-# 結合した動画をHD画質で出力
-final_clip.write_videofile("merged_video_hd.mp4", codec="libx264", audio_codec="aac", fps=30)
-
-print("動画の結合が完了しました: merged_video_hd.mp4")
-    </pre>
-</body>
-</html>
+if __name__ == "__main__":
+    main()
