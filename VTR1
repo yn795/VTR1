@@ -1,0 +1,12 @@
+from moviepy.editor import VideoFileClip, concatenate_videoclips
+
+# 動画ファイルリスト（結合したい動画ファイルのパスを記載）
+video_files = ["video1.mp4", "video2.mp4", "video3.mp4"]
+
+# 動画を読み込み、結合
+final_clip = concatenate_videoclips([VideoFileClip(file) for file in video_files], method="compose")
+
+# 結合した動画をHD画質で出力
+final_clip.write_videofile("merged_video_hd.mp4", codec="libx264", audio_codec="aac", fps=30)
+
+print("動画の結合が完了しました: merged_video_hd.mp4")
