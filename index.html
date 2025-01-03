@@ -3,102 +3,194 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>動画統合・ダウンロード</title>
+    <title>スマホ対応 動画統合・ダウンロード</title>
     <!-- FFmpegのCDN -->
     <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.9/dist/ffmpeg.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
             line-height: 1.6;
+            padding: 20px;
+            margin: 0;
+            background-color: #f9f9f9;
         }
-        video {
-            max-width: 100%;
-            margin-bottom: 20px;
+        h1, h2 {
+            text-align: center;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
         }
         button {
-            padding: 10px 20px;
-            font-size: 16px;
-            margin-top: 10px;
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+            margin: 10px 0;
             cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:disabled {
+            background-color: #aaa;
+            cursor: not-allowed;
+        }
+        video {
+            width: 100%;
+            height: auto;
+            margin: 20px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        #downloadLink button {
+            background-color: #2196F3;
+        }
+        #status {
+            text-align: center;
+            margin: 20px 0;
+            font-weight: bold;
+            color: #555;
+        }
+        /* ローダーのスタイル */
+        .loader {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #3498db;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 2s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* レスポンシブデザイン */
+        @media (max-width: 600px) {
+            button {
+                font-size: 16px;
+                padding: 12px;
+            }
+            .loader {
+                width: 40px;
+                height: 40px;
+                border-width: 6px;
+            }
         }
     </style>
 </head>
 <body>
-    <h1>動画統合・ダウンロード</h1>
+    <div class="container">
+        <h1>動画統合・ダウンロード</h1>
 
-    <!-- 動画アップロード -->
-    <h2>動画アップロード</h2>
-    <input type="file" id="videoFiles" accept="video/mp4" multiple>
-    <button onclick="mergeVideos()">動画を統合</button>
+        <!-- 動画アップロード -->
+        <h2>動画アップロード</h2>
+        <input type="file" id="videoFiles" accept="video/mp4" multiple>
+        <button id="mergeButton" onclick="mergeVideos()">動画を統合</button>
 
-    <!-- プレビューエリア -->
-    <h2>統合された動画プレビュー</h2>
-    <video id="mergedVideo" controls></video>
+        <!-- ステータス表示 -->
+        <div id="status">準備完了</div>
+        <div class="loader" id="loader"></div>
 
-    <!-- ダウンロードボタン -->
-    <h2>ダウンロード</h2>
-    <a id="downloadLink" style="display: none;" download="merged_video.mp4">
-        <button>統合動画をダウンロード</button>
-    </a>
+        <!-- プレビューエリア -->
+        <h2>統合された動画プレビュー</h2>
+        <video id="mergedVideo" controls></video>
+
+        <!-- ダウンロードボタン -->
+        <h2>ダウンロード</h2>
+        <a id="downloadLink" style="display: none;" download="merged_video.mp4">
+            <button>統合動画をダウンロード</button>
+        </a>
+    </div>
 
     <script>
         async function mergeVideos() {
-            const files = document.getElementById("videoFiles").files;
-            if (files.length < 2) {
-                alert("少なくとも2つ以上の動画ファイルを選択してください。");
-                return;
-            }
-
-            // FFmpegの準備
-            const { createFFmpeg, fetchFile } = FFmpeg;
-            const ffmpeg = createFFmpeg({ log: true });
-            await ffmpeg.load();
-
-            // 1. 選択された全動画をFFmpegの仮想ファイルシステムに書き込み
-            for (let i = 0; i < files.length; i++) {
-                const fileData = await fetchFile(files[i]);
-                ffmpeg.FS('writeFile', `input${i}.mp4`, fileData);
-            }
-
-            // 2. 結合用のfilelist.txtを作成
-            //    FFmpegのconcat機能が参照する形式 (file 'xxx') で書く
-            const fileListContent = Array.from(files)
-                .map((_, idx) => `file 'input${idx}.mp4'`)
-                .join('\n');
-            ffmpeg.FS('writeFile', 'filelist.txt', fileListContent);
-
-            // 3. FFmpegを使って動画ファイルを結合する
-            //    -c copy でのコピー結合がうまくいかない場合、再エンコードを指定
-            //    以下の例ではH.264, AACに再エンコード
-            //    ※全ファイルの解像度やコーデックが完全に同じなら -c copy でもOKですが
-            //      異なるとエラーになることが多いので -c:v libx264 -c:a aac を推奨
-            await ffmpeg.run(
-                '-f', 'concat',
-                '-safe', '0',
-                '-i', 'filelist.txt',
-                '-c:v', 'libx264',   // 再エンコード（映像）
-                '-preset', 'fast',   // エンコードスピード指定（お好みで）
-                '-c:a', 'aac',       // 再エンコード（音声）
-                '-strict', 'experimental',
-                '-movflags', '+faststart', // 再生開始を早めるメタデータ処理
-                'output.mp4'
-            );
-
-            // 4. 結合完了した動画のデータを取り出す
-            const data = ffmpeg.FS('readFile', 'output.mp4');
-
-            // 5. Blob URLを生成してページに反映
-            const mergedBlob = new Blob([data.buffer], { type: 'video/mp4' });
-            const mergedUrl = URL.createObjectURL(mergedBlob);
-
-            // プレビューに表示
-            const mergedVideo = document.getElementById("mergedVideo");
-            mergedVideo.src = mergedUrl;
-
-            // ダウンロードボタンのリンク設定
+            const status = document.getElementById("status");
+            const loader = document.getElementById("loader");
+            const mergeButton = document.getElementById("mergeButton");
             const downloadLink = document.getElementById("downloadLink");
-            downloadLink.href = mergedUrl;
-            downloadLink.style.display = "block";
+
+            // ボタンを無効化し、ローダーを表示
+            mergeButton.disabled = true;
+            loader.style.display = "block";
+            status.textContent = "動画の統合を開始しています...";
+
+            try {
+                const files = document.getElementById("videoFiles").files;
+
+                if (files.length < 2) {
+                    alert("少なくとも2つの動画ファイルを選択してください。");
+                    status.textContent = "エラー: 少なくとも2つの動画ファイルを選択してください。";
+                    return;
+                }
+
+                // FFmpegの準備
+                const { createFFmpeg, fetchFile } = FFmpeg;
+                const ffmpeg = createFFmpeg({ log: false }); // ログをオフにしてパフォーマンス向上
+                status.textContent = "FFmpegを読み込んでいます...";
+                await ffmpeg.load();
+
+                // 動画ファイルをFFmpegの仮想ファイルシステムに書き込み
+                status.textContent = "動画ファイルを読み込んでいます...";
+                for (let i = 0; i < files.length; i++) {
+                    status.textContent = `ファイルを読み込んでいます: ${files[i].name}`;
+                    await ffmpeg.FS('writeFile', `input${i}.mp4`, await fetchFile(files[i]));
+                }
+
+                // 結合用のfilelist.txtを作成
+                status.textContent = "ファイルリストを作成しています...";
+                const fileListContent = Array.from(files)
+                    .map((_, idx) => `file 'input${idx}.mp4'`)
+                    .join('\n');
+                ffmpeg.FS('writeFile', 'filelist.txt', fileListContent);
+
+                // FFmpegを使って動画ファイルを結合する
+                status.textContent = "動画を結合しています...";
+                await ffmpeg.run(
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', 'filelist.txt',
+                    '-c:v', 'libx264',
+                    '-preset', 'fast',
+                    '-c:a', 'aac',
+                    '-movflags', '+faststart',
+                    'output.mp4'
+                );
+
+                // 結合完了した動画のデータを取り出す
+                status.textContent = "結合された動画を処理しています...";
+                const data = ffmpeg.FS('readFile', 'output.mp4');
+
+                // Blob URLを生成してページに反映
+                const mergedBlob = new Blob([data.buffer], { type: 'video/mp4' });
+                const mergedUrl = URL.createObjectURL(mergedBlob);
+
+                // プレビューに表示
+                const mergedVideo = document.getElementById("mergedVideo");
+                mergedVideo.src = mergedUrl;
+
+                // ダウンロードボタンのリンク設定
+                downloadLink.href = mergedUrl;
+                downloadLink.style.display = "block";
+
+                status.textContent = "動画の統合が完了しました！";
+            } catch (error) {
+                console.error("エラーが発生しました:", error);
+                status.textContent = `エラーが発生しました: ${error.message}`;
+                alert(`エラーが発生しました: ${error.message}`);
+            } finally {
+                // ボタンを有効化し、ローダーを非表示
+                mergeButton.disabled = false;
+                loader.style.display = "none";
+            }
         }
     </script>
 </body>
