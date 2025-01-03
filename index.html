@@ -5,6 +5,7 @@
   <title>動画結合ツール</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
+    /* ===== スタイル設定 ===== */
     body {
       font-family: Arial, sans-serif;
       background: #f9f9f9;
@@ -93,20 +94,20 @@
   <div class="container">
     <h1>動画結合・ダウンロード</h1>
 
-    <!-- Video Upload -->
+    <!-- 動画アップロード -->
     <h2>動画アップロード</h2>
     <input type="file" id="videoFiles" accept="video/mp4" multiple />
     <button id="mergeButton">動画を結合</button>
 
-    <!-- Status Display -->
+    <!-- ステータス表示とローダー -->
     <div id="status">準備完了</div>
     <div class="loader" id="loader"></div>
 
-    <!-- Merged Video Preview -->
+    <!-- 統合後のプレビュー -->
     <h2>統合された動画プレビュー</h2>
     <video id="mergedVideo" controls></video>
 
-    <!-- Download Button -->
+    <!-- ダウンロードボタン -->
     <h2>ダウンロード</h2>
     <div id="downloadLink">
       <a id="downloadBtn" href="" download="merged_video.mp4">
@@ -115,7 +116,7 @@
     </div>
   </div>
 
-  <!-- Module Script to Import @ffmpeg/ffmpeg via esm.sh -->
+  <!-- モジュールスクリプト -->
   <script type="module">
     // ESM対応CDNから@ffmpeg/ffmpegをインポート
     import { createFFmpeg, fetchFile } from 'https://esm.sh/@ffmpeg/ffmpeg@0.11.9';
@@ -141,6 +142,7 @@
       statusEl.textContent = "FFmpegをロード中...";
 
       try {
+        // FFmpegのロード
         if (!ffmpeg.isLoaded()) {
           await ffmpeg.load();
         }
@@ -188,8 +190,10 @@
         statusEl.textContent = "結合完了！";
       } catch (error) {
         console.error("エラーが発生しました:", error);
-        statusEl.textContent = `エラーが発生しました: ${error.message || error}`;
-        alert(`エラーが発生しました: ${error.message || error}`);
+        // エラーメッセージが undefined にならないように工夫
+        const errMsg = (error && error.message) ? error.message : String(error);
+        statusEl.textContent = `エラーが発生しました: ${errMsg}`;
+        alert(`エラーが発生しました: ${errMsg}`);
       } finally {
         // ボタンを再有効化し、ローダーを非表示
         mergeButton.disabled = false;
@@ -198,4 +202,5 @@
     });
   </script>
 </body>
+</html>
 </html>
