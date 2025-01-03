@@ -1,18 +1,14 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>mp4box.js 改良版 (エラー時のメッセージ表示強化)</title>
-
-  <!-- mp4box.js (CDN) -->
-  <script src="https://unpkg.com/mp4box/dist/mp4box.all.min.js"></script>
-
+  <meta charset="UTF-8">
+  <title>動画結合ツール</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
       font-family: Arial, sans-serif;
       background: #f9f9f9;
-      margin: 0; 
+      margin: 0;
       padding: 20px;
     }
     .container {
@@ -23,27 +19,21 @@
       text-align: center;
       color: #333;
     }
-    #status {
-      text-align: center;
-      font-weight: bold;
-      margin: 15px 0;
-      color: #666;
-    }
     input[type="file"] {
       width: 100%;
-      margin: 10px 0;
       padding: 10px;
+      margin: 10px 0;
     }
     button {
       width: 100%;
       padding: 15px;
+      font-size: 18px;
       margin: 10px 0;
-      font-size: 16px;
       cursor: pointer;
+      background-color: #4CAF50;
+      color: white;
       border: none;
       border-radius: 5px;
-      background-color: #4CAF50;
-      color: #fff;
     }
     button:disabled {
       background-color: #aaa;
@@ -51,165 +41,161 @@
     }
     video {
       width: 100%;
-      margin-top: 20px;
+      height: auto;
+      margin: 20px 0;
       border: 1px solid #ccc;
       border-radius: 5px;
     }
     #downloadLink {
       display: none;
-      margin-top: 10px;
+      margin-top: 20px;
       text-align: center;
     }
     #downloadLink button {
       background-color: #2196F3;
-      color: #fff;
-      padding: 12px;
-      font-size: 16px;
-      border: none;
-      border-radius: 5px;
     }
+    #status {
+      text-align: center;
+      margin: 20px 0;
+      font-weight: bold;
+      color: #555;
+    }
+    /* Loader Styles */
+    .loader {
+      border: 8px solid #f3f3f3;
+      border-top: 8px solid #3498db;
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      animation: spin 2s linear infinite;
+      margin: 20px auto;
+      display: none;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    /* Responsive Design */
     @media (max-width: 600px) {
       button {
-        font-size: 14px;
+        font-size: 16px;
         padding: 12px;
+      }
+      .loader {
+        width: 40px;
+        height: 40px;
+        border-width: 6px;
       }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>mp4box.js で動画結合</h1>
-    <h2>（Error: undefined を回避）</h2>
+    <h1>動画結合・ダウンロード</h1>
 
-    <!-- ファイル入力＆実行ボタン -->
+    <!-- Video Upload -->
+    <h2>動画アップロード</h2>
     <input type="file" id="videoFiles" accept="video/mp4" multiple />
-    <button id="mergeButton">結合開始</button>
+    <button id="mergeButton">動画を結合</button>
 
-    <!-- ステータス表示 -->
+    <!-- Status Display -->
     <div id="status">準備完了</div>
+    <div class="loader" id="loader"></div>
 
-    <!-- 結合後プレビュー -->
+    <!-- Merged Video Preview -->
+    <h2>統合された動画プレビュー</h2>
     <video id="mergedVideo" controls></video>
 
-    <!-- ダウンロードボタン -->
+    <!-- Download Button -->
+    <h2>ダウンロード</h2>
     <div id="downloadLink">
-      <button id="downloadBtn">結合動画をダウンロード</button>
+      <a id="downloadBtn" href="" download="merged_video.mp4">
+        <button>結合動画をダウンロード</button>
+      </a>
     </div>
   </div>
 
-  <script>
-    const mergeButton = document.getElementById("mergeButton");
-    const statusEl = document.getElementById("status");
-    const mergedVideo = document.getElementById("mergedVideo");
-    const downloadLinkDiv = document.getElementById("downloadLink");
-    const downloadBtn = document.getElementById("downloadBtn");
+  <!-- Module Script to Import @ffmpeg/ffmpeg via esm.sh -->
+  <script type="module">
+    // ESM対応CDNから@ffmpeg/ffmpegをインポート
+    import { createFFmpeg, fetchFile } from 'https://esm.sh/@ffmpeg/ffmpeg@0.11.9';
 
-    // 結合開始ボタン
-    mergeButton.addEventListener("click", async () => {
-      const files = document.getElementById("videoFiles").files;
+    const ffmpeg = createFFmpeg({ log: true });
+
+    document.getElementById('mergeButton').addEventListener('click', async () => {
+      const files = document.getElementById('videoFiles').files;
       if (files.length < 2) {
         alert("動画ファイルは2つ以上選択してください。");
         return;
       }
 
+      const statusEl = document.getElementById('status');
+      const loader = document.getElementById('loader');
+      const mergeButton = document.getElementById('mergeButton');
+      const downloadLink = document.getElementById('downloadLink');
+      const mergedVideo = document.getElementById('mergedVideo');
+
+      // ボタンを無効化してローダーを表示
       mergeButton.disabled = true;
-      statusEl.textContent = "動画を読み込み、結合しています...";
+      loader.style.display = 'block';
+      statusEl.textContent = "FFmpegをロード中...";
 
       try {
-        let mergedBuffer = null;
+        if (!ffmpeg.isLoaded()) {
+          await ffmpeg.load();
+        }
 
-        // 選択された動画ファイルを順次読み込んで結合
+        statusEl.textContent = "動画ファイルを読み込み中...";
+
+        // filelist.txtの内容を作成
+        let fileList = '';
         for (let i = 0; i < files.length; i++) {
-          mergedBuffer = await parseAndAppend(files[i], mergedBuffer);
+          const fileName = `input${i}.mp4`;
+          await ffmpeg.FS('writeFile', fileName, await fetchFile(files[i]));
+          fileList += `file '${fileName}'\n`;
         }
 
-        if (!mergedBuffer) {
-          throw new Error("結合用バッファを作成できませんでした。");
-        }
+        // filelist.txtを書き込む
+        await ffmpeg.FS('writeFile', 'filelist.txt', fileList);
 
-        // 結合したバッファを Blob化し、<video> で再生可能なURLを生成
-        const mergedBlob = new Blob([mergedBuffer], { type: "video/mp4" });
+        statusEl.textContent = "動画を結合中...";
+
+        // FFmpegコマンドを実行して動画を結合
+        await ffmpeg.run(
+          '-f', 'concat',
+          '-safe', '0',
+          '-i', 'filelist.txt',
+          '-c:v', 'copy', // 映像をコピー（再エンコードしない）
+          '-c:a', 'copy', // 音声をコピー（再エンコードしない）
+          'output.mp4'
+        );
+
+        // 結合後の動画データを取得
+        const data = ffmpeg.FS('readFile', 'output.mp4');
+
+        // Blob URLを生成
+        const mergedBlob = new Blob([data.buffer], { type: 'video/mp4' });
         const mergedUrl = URL.createObjectURL(mergedBlob);
 
-        // プレビューに設定
+        // プレビューに表示
         mergedVideo.src = mergedUrl;
 
-        // ダウンロードボタンを有効化
-        downloadLinkDiv.style.display = "block";
-        downloadBtn.onclick = () => {
-          const a = document.createElement("a");
-          a.href = mergedUrl;
-          a.download = "merged_video.mp4";
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-        };
+        // ダウンロードリンクを設定
+        const downloadBtn = document.getElementById('downloadBtn');
+        downloadBtn.href = mergedUrl;
+        downloadLink.style.display = 'block';
 
-        statusEl.textContent = "結合完了！（同じコーデック/解像度の場合のみ再生できます）";
-      } catch (err) {
-        // --- エラーをコンソールに出力しつつ、画面に詳細を表示 ---
-        console.error("結合エラー:", err);
-        // err が文字列またはオブジェクトかを判定してメッセージ化
-        const errMsg = (typeof err === "object" && err?.message) ? err.message : String(err);
-        statusEl.textContent = "エラー: " + errMsg;
-        alert("エラーが発生しました: " + errMsg);
+        statusEl.textContent = "結合完了！";
+      } catch (error) {
+        console.error("エラーが発生しました:", error);
+        statusEl.textContent = `エラーが発生しました: ${error.message || error}`;
+        alert(`エラーが発生しました: ${error.message || error}`);
       } finally {
+        // ボタンを再有効化し、ローダーを非表示
         mergeButton.disabled = false;
+        loader.style.display = 'none';
       }
     });
-
-    /**
-     * mp4box.js を用いてファイルを解析し、前の結合バッファに連結する
-     * @param {File} file 
-     * @param {ArrayBuffer|null} prevBuffer 
-     * @returns {Promise<ArrayBuffer>} 新たに連結されたバッファ
-     */
-    function parseAndAppend(file, prevBuffer) {
-      return new Promise(async (resolve, reject) => {
-        statusEl.textContent = `解析中: ${file.name}`;
-        const arrayBuffer = await file.arrayBuffer();
-
-        // mp4boxのFileインスタンス
-        const mp4boxfile = MP4Box.createFile();
-
-        // onError でエラー時に必ず new Error(...) を投げる
-        mp4boxfile.onError = (e) => {
-          console.error("mp4box onError:", e);
-          // 文字列の場合もオブジェクトの場合も、必ず new Error で包む
-          const message = typeof e === "string" ? e : (e?.message || "不明なmp4boxエラー");
-          reject(new Error(message));
-        };
-
-        // onReady で解析完了を受け取る
-        mp4boxfile.onReady = (info) => {
-          // 必要に応じて info.tracks を検証したりできる
-          statusEl.textContent = `解析完了: ${file.name}`;
-          // ここでは単純に前のバッファとの連結だけ行う
-          const newBuffer = concatBuffer(prevBuffer, arrayBuffer);
-          resolve(newBuffer);
-        };
-
-        // データを追加して解析を進める
-        mp4boxfile.appendBuffer(arrayBuffer);
-        mp4boxfile.flush();
-      });
-    }
-
-    /**
-     * ArrayBuffer を連結するヘルパー関数
-     * @param {ArrayBuffer|null} buffer1 
-     * @param {ArrayBuffer} buffer2 
-     * @returns {ArrayBuffer}
-     */
-    function concatBuffer(buffer1, buffer2) {
-      if (!buffer1) return buffer2.slice(0);
-      if (!buffer2) return buffer1.slice(0);
-
-      const tmp = new Uint8Array(buffer1.byteLength + buffer2.byteLength);
-      tmp.set(new Uint8Array(buffer1), 0);
-      tmp.set(new Uint8Array(buffer2), buffer1.byteLength);
-      return tmp.buffer;
-    }
   </script>
 </body>
 </html>
