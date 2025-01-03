@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>動画統合・ダウンロード</title>
+    <!-- FFmpegのCDN -->
     <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.9/dist/ffmpeg.min.js"></script>
     <style>
         body {
@@ -43,37 +44,50 @@
     <script>
         async function mergeVideos() {
             const files = document.getElementById("videoFiles").files;
-
             if (files.length < 2) {
-                alert("少なくとも2つの動画ファイルを選択してください。");
+                alert("少なくとも2つ以上の動画ファイルを選択してください。");
                 return;
             }
 
+            // FFmpegの準備
             const { createFFmpeg, fetchFile } = FFmpeg;
             const ffmpeg = createFFmpeg({ log: true });
-
             await ffmpeg.load();
 
-            // 動画ファイルをFFmpegにロード
+            // 1. 選択された全動画をFFmpegの仮想ファイルシステムに書き込み
             for (let i = 0; i < files.length; i++) {
-                ffmpeg.FS('writeFile', `input${i}.mp4`, await fetchFile(files[i]));
+                const fileData = await fetchFile(files[i]);
+                ffmpeg.FS('writeFile', `input${i}.mp4`, fileData);
             }
 
-            // 動画を結合するためのリストファイルを作成
-            const fileList = files.length === 2
-                ? `file 'input0.mp4'\nfile 'input1.mp4'\n`
-                : Array.from(files)
-                      .map((_, index) => `file 'input${index}.mp4'`)
-                      .join("\n");
-            ffmpeg.FS('writeFile', 'filelist.txt', fileList);
+            // 2. 結合用のfilelist.txtを作成
+            //    FFmpegのconcat機能が参照する形式 (file 'xxx') で書く
+            const fileListContent = Array.from(files)
+                .map((_, idx) => `file 'input${idx}.mp4'`)
+                .join('\n');
+            ffmpeg.FS('writeFile', 'filelist.txt', fileListContent);
 
-            // FFmpegで動画を結合
-            await ffmpeg.run('-f', 'concat', '-safe', '0', '-i', 'filelist.txt', '-c', 'copy', 'output.mp4');
+            // 3. FFmpegを使って動画ファイルを結合する
+            //    -c copy でのコピー結合がうまくいかない場合、再エンコードを指定
+            //    以下の例ではH.264, AACに再エンコード
+            //    ※全ファイルの解像度やコーデックが完全に同じなら -c copy でもOKですが
+            //      異なるとエラーになることが多いので -c:v libx264 -c:a aac を推奨
+            await ffmpeg.run(
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', 'filelist.txt',
+                '-c:v', 'libx264',   // 再エンコード（映像）
+                '-preset', 'fast',   // エンコードスピード指定（お好みで）
+                '-c:a', 'aac',       // 再エンコード（音声）
+                '-strict', 'experimental',
+                '-movflags', '+faststart', // 再生開始を早めるメタデータ処理
+                'output.mp4'
+            );
 
-            // 結合された動画を取得
+            // 4. 結合完了した動画のデータを取り出す
             const data = ffmpeg.FS('readFile', 'output.mp4');
 
-            // 結合結果をURL化
+            // 5. Blob URLを生成してページに反映
             const mergedBlob = new Blob([data.buffer], { type: 'video/mp4' });
             const mergedUrl = URL.createObjectURL(mergedBlob);
 
@@ -81,7 +95,7 @@
             const mergedVideo = document.getElementById("mergedVideo");
             mergedVideo.src = mergedUrl;
 
-            // ダウンロードリンクを設定
+            // ダウンロードボタンのリンク設定
             const downloadLink = document.getElementById("downloadLink");
             downloadLink.href = mergedUrl;
             downloadLink.style.display = "block";
